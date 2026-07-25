@@ -62,7 +62,7 @@ namespace CMS21TogetherHotfix
     public static class ParkingSyncFix
     {
         // Postfix for GameDataManager.SaveCarInParking(NewCarData carData, int index)
-        public static void SaveCarInParkingPostfix(object[] __args)
+        public static void SaveCarInParkingPostfix(object[] __args, int __1)
         {
             try
             {
@@ -78,16 +78,23 @@ namespace CMS21TogetherHotfix
                     return;
                 }
 
-                if (__args == null || __args.Length < 2)
+                // Parking slots use small indices. If the runtime hands us a
+                // huge value the int argument was marshalled wrong, so skip it
+                // to avoid corrupting the other player's parking.
+                int index = __1;
+                if (index < 0 || index > 50)
+                {
+                    MelonLogger.Warning($"[TogetherHotfix] parking sync: suspicious index {index}, skipping.");
                     return;
+                }
 
-                object carData = __args[0];
-                int index = Convert.ToInt32(__args[1]);
+                object carData = (__args != null && __args.Length > 0) ? __args[0] : null;
 
                 // Null car == the slot is being cleared -> tell others to remove.
                 if (carData == null)
                 {
                     ClientSend.RemoveCarFromParkPacket(index);
+                    MelonLogger.Msg($"[TogetherHotfix] parking sync: removed car from park (index {index}).");
                     return;
                 }
 
@@ -106,24 +113,5 @@ namespace CMS21TogetherHotfix
             }
         }
 
-        // Postfix for GameDataManager.LoadCarInGarage(int index)
-        public static void LoadCarInGaragePostfix(object[] __args)
-        {
-            try
-            {
-                if (Client.Instance == null || !Client.Instance.isConnected)
-                    return;
-                if (__args == null || __args.Length < 1)
-                    return;
-
-                int index = Convert.ToInt32(__args[0]);
-                ClientSend.RemoveCarFromParkPacket(index);
-                MelonLogger.Msg($"[TogetherHotfix] parking sync: removed car from park (index {index}).");
-            }
-            catch (Exception e)
-            {
-                MelonLogger.Warning("[TogetherHotfix] LoadCarInGaragePostfix failed: " + e.Message);
-            }
-        }
     }
 }

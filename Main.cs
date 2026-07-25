@@ -51,18 +51,6 @@ namespace CMS21TogetherHotfix
                 {
                     MelonLogger.Warning("[TogetherHotfix] parking sync: SaveCarInParking not found; skipping.");
                 }
-
-                MethodInfo load = AccessTools.Method(gdm, "LoadCarInGarage");
-                if (load != null)
-                {
-                    h.Patch(load, postfix: new HarmonyMethod(
-                        typeof(ParkingSyncFix), nameof(ParkingSyncFix.LoadCarInGaragePostfix)));
-                    MelonLogger.Msg("[TogetherHotfix] parking sync: hooked GameDataManager.LoadCarInGarage.");
-                }
-                else
-                {
-                    MelonLogger.Warning("[TogetherHotfix] parking sync: LoadCarInGarage not found (remove-from-park skipped).");
-                }
             }
             catch (Exception e)
             {
