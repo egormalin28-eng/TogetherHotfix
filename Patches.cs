@@ -1,9 +1,13 @@
+using System;
 using HarmonyLib;
 using MelonLoader;
 using CMS21Together.Shared;
+using CMS21Together.ClientSide;
 using CMS21Together.ClientSide.Data.Handle;
+using CMS21Together.ClientSide.Data.Garage.Car;
 using CMS21Together.ClientSide.Data.Garage.Tools;
 using CMS21Together.ClientSide.Data.NewUI;
+using CMS21Together.Shared.Data.Vanilla.Cars;
 
 namespace CMS21TogetherHotfix
 {
@@ -35,6 +39,91 @@ namespace CMS21TogetherHotfix
             if (UICore.TMP_Window == null)
                 return false; // window not ready -> do nothing (no crash)
             return true;      // otherwise run the original refresh
+        }
+    }
+
+    // FIX 3 (EXPERIMENTAL): parking sync was disabled in the base mod.
+    // In ParkHook.cs the hooks on GameDataManager.SaveCarInParking /
+    // LoadCarInGarage are commented out, so when a player sends a car to the
+    // parking lot the CURRENT car state (installed parts, body, engine) is
+    // never captured and never sent to the server. Result: the parked car
+    // reverts to its as-bought state and the partner never sees it.
+    //
+    // All the downstream plumbing is intact and active:
+    //   ClientSend.AddCarToParkPacket -> ServerHandle -> ServerSend ->
+    //   ClientHandle.AddCarToParkPacket -> ParkHook.AddCarToPark, plus
+    //   ServerResyncs.ResyncPark on join.
+    // We only re-enable the trigger the authors left commented, faithfully
+    // including their ParkHook.listen echo-guard.
+    //
+    // The target methods are vanilla Il2Cpp methods, so we resolve and patch
+    // them MANUALLY by name from Main (see Main.cs) to avoid a compile-time
+    // reference to Assembly-CSharp. This class only holds the postfix bodies.
+    public static class ParkingSyncFix
+    {
+        // Postfix for GameDataManager.SaveCarInParking(NewCarData carData, int index)
+        public static void SaveCarInParkingPostfix(object[] __args)
+        {
+            try
+            {
+                if (Client.Instance == null || !Client.Instance.isConnected)
+                    return;
+
+                // Echo guard: when we RECEIVE a parked car, ParkHook sets
+                // listen=false before calling SaveCarInParking. Consume it and
+                // do NOT re-broadcast (prevents a feedback loop).
+                if (!ParkHook.listen)
+                {
+                    ParkHook.listen = true;
+                    return;
+                }
+
+                if (__args == null || __args.Length < 2)
+                    return;
+
+                object carData = __args[0];
+                int index = Convert.ToInt32(__args[1]);
+
+                // Null car == the slot is being cleared -> tell others to remove.
+                if (carData == null)
+                {
+                    ClientSend.RemoveCarFromParkPacket(index);
+                    return;
+                }
+
+                // Build a ModNewCarData from the vanilla NewCarData via reflection
+                // (ctor: ModNewCarData(NewCarData, int placeNo = 0, int _jobID = -1))
+                // so we don't need the vanilla type at compile time.
+                var modCar = (ModNewCarData)Activator.CreateInstance(
+                    typeof(ModNewCarData), carData, 0, -1);
+
+                ClientSend.AddCarToParkPacket(modCar, index);
+                MelonLogger.Msg($"[TogetherHotfix] parking sync: sent car to park (index {index}).");
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Warning("[TogetherHotfix] SaveCarInParkingPostfix failed: " + e.Message);
+            }
+        }
+
+        // Postfix for GameDataManager.LoadCarInGarage(int index)
+        public static void LoadCarInGaragePostfix(object[] __args)
+        {
+            try
+            {
+                if (Client.Instance == null || !Client.Instance.isConnected)
+                    return;
+                if (__args == null || __args.Length < 1)
+                    return;
+
+                int index = Convert.ToInt32(__args[0]);
+                ClientSend.RemoveCarFromParkPacket(index);
+                MelonLogger.Msg($"[TogetherHotfix] parking sync: removed car from park (index {index}).");
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Warning("[TogetherHotfix] LoadCarInGaragePostfix failed: " + e.Message);
+            }
         }
     }
 }
