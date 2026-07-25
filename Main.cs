@@ -25,6 +25,9 @@ namespace CMS21TogetherHotfix
 
             // FIX 3 (EXPERIMENTAL) - manual patch, fully guarded.
             TryEnableParkingSync(h);
+
+            // FIX 4 - stop the base mod's SwitchCarPartHook from crashing on buy.
+            TryGuardSwitchCarPart(h);
         }
 
         private void TryEnableParkingSync(HarmonyLib.Harmony h)
@@ -56,6 +59,40 @@ namespace CMS21TogetherHotfix
             {
                 // Never let the experimental fix take down the working patches.
                 MelonLogger.Warning("[TogetherHotfix] parking sync setup failed (fixes 1&2 still active): " + e.Message);
+            }
+        }
+
+        // FIX 4: The base mod's CarSyncHooks.SwitchCarPartHook is a POSTFIX that
+        // indexes ClientData.loadedCars[carLoaderID] without a ContainsKey guard.
+        // When you buy a car its loader isn't in that dictionary yet, so the hook
+        // throws KeyNotFoundException and the game crashes. Because the hook runs
+        // AFTER the real SwitchCarPart, the part already switched locally; we just
+        // swallow the hook's exception so it can't crash the game.
+        private void TryGuardSwitchCarPart(HarmonyLib.Harmony h)
+        {
+            try
+            {
+                Type t = AccessTools.TypeByName("CMS21Together.ClientSide.Data.Garage.Car.CarSyncHooks");
+                if (t == null)
+                {
+                    MelonLogger.Warning("[TogetherHotfix] SwitchCarPart guard: CarSyncHooks not found; skipping.");
+                    return;
+                }
+
+                MethodInfo hook = AccessTools.Method(t, "SwitchCarPartHook");
+                if (hook == null)
+                {
+                    MelonLogger.Warning("[TogetherHotfix] SwitchCarPart guard: SwitchCarPartHook not found; skipping.");
+                    return;
+                }
+
+                h.Patch(hook, finalizer: new HarmonyMethod(
+                    typeof(SwitchCarPartGuard), nameof(SwitchCarPartGuard.Finalizer)));
+                MelonLogger.Msg("[TogetherHotfix] SwitchCarPart guard: installed (prevents KeyNotFound crash on buy).");
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Warning("[TogetherHotfix] SwitchCarPart guard setup failed: " + e.Message);
             }
         }
     }

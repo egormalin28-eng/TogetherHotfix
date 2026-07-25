@@ -114,4 +114,20 @@ namespace CMS21TogetherHotfix
         }
 
     }
+
+    // FIX 4 helper: swallow exceptions thrown by the base mod's
+    // CarSyncHooks.SwitchCarPartHook so a missing loadedCars key (which happens
+    // right after buying a car) can't crash the game. The hook is a postfix, so
+    // the real part switch has already run by the time it throws.
+    public static class SwitchCarPartGuard
+    {
+        public static Exception Finalizer(Exception __exception)
+        {
+            if (__exception != null)
+                MelonLogger.Warning(
+                    "[TogetherHotfix] SwitchCarPart: swallowed base-mod " +
+                    __exception.GetType().Name + " to prevent crash.");
+            return null;
+        }
+    }
 }
