@@ -16,7 +16,7 @@ namespace CMS21TogetherHotfix
     {
         public override void OnLateInitializeMelon()
         {
-            var h = new Harmony("com.together.hotfix.enginestand-lobby");
+            var h = new HarmonyLib.Harmony("com.together.hotfix.enginestand-lobby");
 
             // FIX 1 + FIX 2 (attribute patches). Kept isolated so nothing below
             // can break them.
@@ -27,7 +27,7 @@ namespace CMS21TogetherHotfix
             TryEnableParkingSync(h);
         }
 
-        private void TryEnableParkingSync(Harmony h)
+        private void TryEnableParkingSync(HarmonyLib.Harmony h)
         {
             try
             {
