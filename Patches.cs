@@ -21,10 +21,25 @@ namespace CMS21TogetherHotfix
     {
         public static bool Prefix(Packet packet)
         {
-            float angle = packet.Read<float>();
-            bool alt = packet.Read<bool>();
-            MelonCoroutines.Start(EngineStand.IncreaseEngineStandAngle(angle, alt));
-            return false; // skip the broken original
+            // The old (0.4.16hf3) DLL sends only the angle float on this packet;
+            // newer builds also append a bool "alt". Read the float, then try the
+            // bool but fall back to false when it is absent. Never throw: a throw
+            // here breaks engine-stand sync (the engine vanishes on the other
+            // client) and can cascade into a garage resync that reverts the car
+            // to its as-bought state.
+            try
+            {
+                float angle = packet.Read<float>();
+                bool alt = false;
+                try { alt = packet.Read<bool>(); }
+                catch { alt = false; }
+                MelonCoroutines.Start(EngineStand.IncreaseEngineStandAngle(angle, alt));
+            }
+            catch (Exception e)
+            {
+                MelonLogger.Warning("[TogetherHotfix] EngineStandAngle read skipped: " + e.Message);
+            }
+            return false; // never run the broken original
         }
     }
 
