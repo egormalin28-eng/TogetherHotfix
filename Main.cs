@@ -23,8 +23,12 @@ namespace CMS21TogetherHotfix
             h.PatchAll(Assembly.GetExecutingAssembly());
             MelonLogger.Msg("[TogetherHotfix] applied: EngineStandAngle read fix + Lobby null-guard.");
 
-            // FIX 3 (EXPERIMENTAL) - manual patch, fully guarded.
-            TryEnableParkingSync(h);
+            // FIX 3 (EXPERIMENTAL) - DISABLED. The parking hook could not build a
+            // ModNewCarData from the Il2Cpp car object (it threw on every save) and
+            // is the prime suspect for the native crash, so it stays off until it
+            // can be done safely. Fixes 1, 2 and 4 are unaffected.
+            // TryEnableParkingSync(h);
+            MelonLogger.Msg("[TogetherHotfix] parking sync: DISABLED for stability (fixes 1, 2, 4 active).");
 
             // FIX 4 - stop the base mod's SwitchCarPartHook from crashing on buy.
             TryGuardSwitchCarPart(h);
